@@ -448,7 +448,7 @@ async function startCast() {
       preferCurrentTab: false        // deprioritize tab sharing in picker
     });
     stream.getAudioTracks().forEach(t => { t.contentHint = 'music'; });
-    stream.getVideoTracks().forEach(t => { t.contentHint = 'motion'; });
+    stream.getVideoTracks().forEach(t => { t.contentHint = 'detail'; }); // keep resolution, drop fps if needed
 
     if (stream.getAudioTracks().length === 0) {
       const surface = stream.getVideoTracks()[0]?.getSettings().displaySurface;
@@ -472,6 +472,7 @@ async function startCast() {
     };
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === 'connected') {
+        boostVideoSender();
         const hasAudio = stream.getAudioTracks().length > 0;
         status.innerHTML = '<span class="dot green"></span>Transmitiendo' + (hasAudio ? ' con audio' : '');
         btn.textContent = '⏹ Detener'; btn.disabled = false; btn.onclick = stopCast;
@@ -499,6 +500,24 @@ async function startCast() {
   } catch(e) {
     status.innerHTML = '<span class="dot red"></span>' + e.message;
     resetBtn();
+  }
+}
+
+// Without an explicit maxBitrate, WebRTC starts at ~300 kbps, picks 320x180 as the
+// initial resolution, then caps bitrate by resolution (~600 kbps at 180p) — so it
+// never climbs out of 180p even on an idle LAN. Raising the cap breaks that loop.
+async function boostVideoSender() {
+  const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+  if (!sender) return;
+  try {
+    const params = sender.getParameters();
+    if (!params.encodings || !params.encodings.length) params.encodings = [{}];
+    params.encodings[0].maxBitrate = 8000000;   // 8 Mbps — plenty for 1080p30 on LAN
+    params.encodings[0].scaleResolutionDownBy = 1;
+    try { params.degradationPreference = 'maintain-resolution'; } catch(_) {}
+    await sender.setParameters(params);
+  } catch(e) {
+    console.warn('boostVideoSender failed', e);
   }
 }
 
