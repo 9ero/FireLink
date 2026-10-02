@@ -11,12 +11,30 @@ android {
         applicationId "dev.firecast.castv2"
         minSdk 25
         targetSdk 34
-        versionCode 1
-        versionName "0.1.0"
+        // CI passes -PversionCode / -PversionName derived from the release tag
+        versionCode(project.findProperty('versionCode')?.toInteger() ?: 1)
+        versionName(project.findProperty('versionName') ?: "0.1.0")
+    }
+
+    // Release signing comes from env vars (set by CI from repo secrets).
+    // Without them, assembleRelease produces an unsigned APK.
+    def releaseKeystore = System.getenv('FIRELINK_KEYSTORE_PATH')
+    signingConfigs {
+        if (releaseKeystore) {
+            release {
+                storeFile file(releaseKeystore)
+                storePassword System.getenv('FIRELINK_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('FIRELINK_KEY_ALIAS')
+                keyPassword System.getenv('FIRELINK_KEY_PASSWORD')
+            }
+        }
     }
 
     buildTypes {
-        release { minifyEnabled false }
+        release {
+            minifyEnabled false
+            if (releaseKeystore) signingConfig signingConfigs.release
+        }
     }
 
     compileOptions {
