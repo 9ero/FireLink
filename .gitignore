@@ -19,3 +19,7 @@ media_router_internals_*.json
 *.swp
 *.swo
 Thumbs.db
+
+# Signing keys — never commit
+*.jks
+*.keystore
